@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,10 +21,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,10 +46,471 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             Startup_hackathon20Theme {
-                CarbonRegistryApp(viewModel)
+                MainApp(viewModel)
             }
         }
     }
+}
+
+@Composable
+fun MainApp(viewModel: CarbonViewModel) {
+    val authState by viewModel.authState.collectAsState()
+    
+    AnimatedContent(
+        targetState = authState.isAuthenticated,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(1000)) + slideInHorizontally(
+                animationSpec = tween(1000),
+                initialOffsetX = { it }
+            ) togetherWith fadeOut(animationSpec = tween(1000))
+        },
+        label = "auth_transition"
+    ) { isAuthenticated ->
+        if (isAuthenticated) {
+            CarbonRegistryApp(viewModel)
+        } else {
+            LoginScreen(viewModel)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginScreen(viewModel: CarbonViewModel) {
+    var selectedLoginType by remember { mutableStateOf<LoginType?>(null) }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isRegistering by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
+    
+    // Animation states
+    val infiniteTransition = rememberInfiniteTransition(label = "background")
+    val animatedOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "offset"
+    )
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    LaunchedEffect(uiState) {
+        when (uiState) {
+            is UiState.Error -> {
+                snackbarHostState.showSnackbar((uiState as UiState.Error).message)
+                viewModel.clearUiState()
+            }
+            else -> {}
+        }
+    }
+    
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF1A237E),
+                            Color(0xFF283593),
+                            Color(0xFF303F9F),
+                            Color(0xFF3949AB)
+                        ),
+                        start = androidx.compose.ui.geometry.Offset(animatedOffset, animatedOffset),
+                        end = androidx.compose.ui.geometry.Offset(
+                            animatedOffset + 1000f,
+                            animatedOffset + 1000f
+                        )
+                    )
+                )
+                .padding(padding)
+        ) {
+            // Animated background circles
+            Box(
+                modifier = Modifier
+                    .size(300.dp)
+                    .offset(x = (-50).dp, y = (-50).dp)
+                    .background(Color.White.copy(alpha = 0.05f), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 50.dp, y = 100.dp)
+                    .background(Color.White.copy(alpha = 0.05f), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .size(250.dp)
+                    .align(Alignment.BottomStart)
+                    .offset(x = (-80).dp, y = 80.dp)
+                    .background(Color.White.copy(alpha = 0.05f), CircleShape)
+            )
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Logo and Title
+                val scale by rememberInfiniteTransition(label = "logo").animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(2000, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "scale"
+                )
+                
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .scale(scale)
+                )
+                
+                Spacer(Modifier.height(16.dp))
+                
+                Text(
+                    "Carbon Registry",
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                
+                Text(
+                    "Blockchain Carbon Credit Platform",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+                
+                Spacer(Modifier.height(48.dp))
+                
+                // Login Type Selection or Login Form
+                AnimatedContent(
+                    targetState = selectedLoginType,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(500)) + slideInVertically(
+                            animationSpec = tween(500),
+                            initialOffsetY = { it / 2 }
+                        ) togetherWith fadeOut(animationSpec = tween(500))
+                    },
+                    label = "login_type_transition"
+                ) { loginType ->
+                    when (loginType) {
+                        null -> {
+                            // Login Type Selection
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    "Select Login Type",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                
+                                Spacer(Modifier.height(8.dp))
+                                
+                                LoginTypeCard(
+                                    icon = Icons.Default.Person,
+                                    title = "User Login",
+                                    description = "Access carbon credits and manage your portfolio",
+                                    color = Color(0xFF4CAF50),
+                                    onClick = { selectedLoginType = LoginType.USER }
+                                )
+                                
+                                LoginTypeCard(
+                                    icon = Icons.Default.Settings,
+                                    title = "Admin Login",
+                                    description = "Manage projects, verify credits, and oversee operations",
+                                    color = Color(0xFFFF9800),
+                                    onClick = { selectedLoginType = LoginType.ADMIN }
+                                )
+                            }
+                        }
+                        else -> {
+                            // Login Form
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .animateContentSize(),
+                                shape = RoundedCornerShape(24.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color.White.copy(alpha = 0.95f)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    // Back Button
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(onClick = { 
+                                            selectedLoginType = null
+                                            isRegistering = false
+                                            username = ""
+                                            password = ""
+                                            email = ""
+                                        }) {
+                                            Icon(Icons.Default.ArrowBack, "Back")
+                                        }
+                                        
+                                        Icon(
+                                            if (loginType == LoginType.ADMIN) Icons.Default.Settings else Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = if (loginType == LoginType.ADMIN) Color(0xFFFF9800) else Color(0xFF4CAF50),
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                    
+                                    Spacer(Modifier.height(8.dp))
+                                    
+                                    Text(
+                                        if (isRegistering) "Create Account" else "${loginType.name.lowercase().replaceFirstChar { it.uppercase() }} Login",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    
+                                    Spacer(Modifier.height(24.dp))
+                                    
+                                    // Username Field
+                                    OutlinedTextField(
+                                        value = username,
+                                        onValueChange = { username = it },
+                                        label = { Text("Username") },
+                                        leadingIcon = { Icon(Icons.Default.Person, null) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    
+                                    Spacer(Modifier.height(16.dp))
+                                    
+                                    // Email Field (only for registration)
+                                    if (isRegistering && loginType == LoginType.USER) {
+                                        OutlinedTextField(
+                                            value = email,
+                                            onValueChange = { email = it },
+                                            label = { Text("Email") },
+                                            leadingIcon = { Icon(Icons.Default.Email, null) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        
+                                        Spacer(Modifier.height(16.dp))
+                                    }
+                                    
+                                    // Password Field
+                                    OutlinedTextField(
+                                        value = password,
+                                        onValueChange = { password = it },
+                                        label = { Text("Password") },
+                                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                        trailingIcon = {
+                                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                                Icon(
+                                                    if (passwordVisible) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                    "Toggle password visibility"
+                                                )
+                                            }
+                                        },
+                                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    
+                                    Spacer(Modifier.height(24.dp))
+                                    
+                                    // Login/Register Button
+                                    Button(
+                                        onClick = {
+                                            if (isRegistering && loginType == LoginType.USER) {
+                                                viewModel.register(username, email, password)
+                                            } else {
+                                                viewModel.login(username, password, loginType == LoginType.ADMIN)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(56.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (loginType == LoginType.ADMIN) Color(0xFFFF9800) else Color(0xFF4CAF50)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        enabled = username.isNotBlank() && password.isNotBlank() && 
+                                                  (!isRegistering || !email.isBlank() || loginType == LoginType.ADMIN)
+                                    ) {
+                                        if (uiState is UiState.Loading) {
+                                            CircularProgressIndicator(
+                                                color = Color.White,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        } else {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    if (isRegistering) "Register" else "Login",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Icon(
+                                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Toggle between login and register (only for users)
+                                    if (loginType == LoginType.USER) {
+                                        Spacer(Modifier.height(16.dp))
+                                        
+                                        TextButton(
+                                            onClick = { 
+                                                isRegistering = !isRegistering
+                                                password = ""
+                                                email = ""
+                                            }
+                                        ) {
+                                            Text(
+                                                if (isRegistering) "Already have an account? Login" else "Don't have an account? Register",
+                                                color = Color(0xFF4CAF50)
+                                            )
+                                        }
+                                    }
+                                    
+                                    // Admin hint
+                                    if (loginType == LoginType.ADMIN) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            "Default: admin / admin123",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(Modifier.height(32.dp))
+                
+                // Footer
+                Text(
+                    "Built with ❤️ for a sustainable future",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LoginTypeCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "scale"
+    )
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale)
+            .clickable {
+                onClick()
+            },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White.copy(alpha = 0.95f)
+        ),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .background(color.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = color,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+            
+            Spacer(Modifier.width(16.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+            }
+            
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = color
+            )
+        }
+    }
+}
+
+enum class LoginType {
+    USER,
+    ADMIN
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +518,8 @@ class MainActivity : ComponentActivity() {
 fun CarbonRegistryApp(viewModel: CarbonViewModel) {
     var selectedScreen by remember { mutableStateOf(Screen.Dashboard) }
     val uiState by viewModel.uiState.collectAsState()
+    val authState by viewModel.authState.collectAsState()
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     // Show snackbar for UI state changes
     val snackbarHostState = remember { SnackbarHostState() }
@@ -85,11 +552,41 @@ fun CarbonRegistryApp(viewModel: CarbonViewModel) {
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Carbon Registry",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Column {
+                            Text(
+                                "Carbon Registry",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            authState.username?.let {
+                                Text(
+                                    "Welcome, $it",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                    }
+                },
+                actions = {
+                    // User type badge
+                    authState.userType?.let { userType ->
+                        Surface(
+                            color = if (userType.name == "ADMIN") Color(0xFFFF9800) else Color(0xFF4CAF50),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                userType.name,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(Icons.Default.ExitToApp, "Logout")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -122,6 +619,30 @@ fun CarbonRegistryApp(viewModel: CarbonViewModel) {
                 }
             }
         }
+    }
+    
+    // Logout confirmation dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.logout()
+                        showLogoutDialog = false
+                    }
+                ) {
+                    Text("Logout")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
